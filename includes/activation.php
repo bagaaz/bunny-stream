@@ -23,6 +23,8 @@ function bunny_stream_create_libraries_table() {
         id INT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         api_key VARCHAR(255) NOT NULL,
+        token_auth_key VARCHAR(255) DEFAULT NULL,
+        cdn_hostname VARCHAR(255) DEFAULT NULL,
         video_count INT DEFAULT 0,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) $charset_collate;";

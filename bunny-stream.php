@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: Bunny Stream
- * Plugin URI: https://bunnycdn.com
+ * Plugin URI: https://devconecta.com.br/bunny-stream
  * Description: Plugin para integrar Bunny Stream ao seu WordPress.
- * Version: 1.4.0
+ * Version: 1.0.0
  * Author: DevConecta
  * Author URI: https://devconecta.com.br
  */

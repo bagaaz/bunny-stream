@@ -89,7 +89,7 @@ function bunny_stream_videos_shortcode( $atts ) {
     $output = $form;
     $output .= '<div class="bunny-stream-videos" style="max-width: 1200px; margin: 20px auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">';
 
-// Loop nos vídeos e gera um embed (iframe) para cada um
+    // Loop nos vídeos e gera um embed (iframe) para cada um
     foreach ($videos as $video) {
         // URL padrão do Bunny para exibir o vídeo
         $embed_url = sprintf('https://iframe.mediadelivery.net/embed/%d/%s?autoplay=false&loop=false&muted=false&preload=false&responsive=true', $library_id, esc_attr($video['guid']));

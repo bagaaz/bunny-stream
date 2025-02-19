@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 });
 
-// Função para carregar as bibliotecas salvas no banco de dados
+// Função para carregar as bibliotecas salvas no banco de dados e incluir os campos para editar
 function loadLibraries() {
     fetch(ajaxurl + "?action=bunny_stream_get_libraries")
         .then(response => response.json())
@@ -32,16 +32,54 @@ function loadLibraries() {
                 let output = "<ul>";
                 data.forEach(library => {
                     output += `<li>
-                        <a href="#" class="library-link" data-id="${library.id}" data-api-key="${library.api_key}">
-                            <strong>${library.name}</strong> - ${library.video_count} vídeos
-                        </a>
+                        <strong>${library.name}</strong> - ${library.video_count} vídeos<br>
+                        API Key: ${library.api_key}<br>
+                        Token Authentication Key: <input type="text" class="token-key" data-library-id="${library.id}" value="${library.token_auth_key ? library.token_auth_key : ''}" style="width:300px;"><br>
+                        CDN Hostname: <input type="text" class="cdn-hostname" data-library-id="${library.id}" value="${library.cdn_hostname ? library.cdn_hostname : ''}" style="width:300px;"><br>
+                        <button class="update-library" data-library-id="${library.id}">Atualizar</button><br>
+                        <a href="#" class="library-link" data-id="${library.id}" data-api-key="${library.api_key}">Exibir Vídeos</a>
                     </li>`;
                 });
                 output += "</ul>";
                 document.getElementById("bunny-libraries").innerHTML = output;
 
+                // Listener para os botões de atualizar os dados da biblioteca
+                document.querySelectorAll(".update-library").forEach(button => {
+                    button.addEventListener("click", function () {
+                        const libraryId = this.getAttribute("data-library-id");
+                        const tokenKey = document.querySelector(`.token-key[data-library-id="${libraryId}"]`).value;
+                        const cdnHostname = document.querySelector(`.cdn-hostname[data-library-id="${libraryId}"]`).value;
+
+                        fetch(ajaxurl, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+                            },
+                            body: new URLSearchParams({
+                                action: "bunny_stream_update_library_details",
+                                library_id: libraryId,
+                                token_auth_key: tokenKey,
+                                cdn_hostname: cdnHostname
+                            })
+                        })
+                            .then(response => response.json())
+                            .then(result => {
+                                if(result.success) {
+                                    alert("Biblioteca atualizada com sucesso!");
+                                    loadLibraries(); // recarrega as bibliotecas para atualizar os dados na interface
+                                } else {
+                                    alert("Erro: " + result.data);
+                                }
+                            })
+                            .catch(error => {
+                                alert("Erro ao atualizar a biblioteca: " + error);
+                            });
+                    });
+                });
+
+                // Listener para os links que exibem os vídeos da biblioteca
                 document.querySelectorAll(".library-link").forEach(link => {
-                    link.addEventListener("click", function (e) {
+                    link.addEventListener("click", function(e) {
                         e.preventDefault();
                         let libraryId = this.getAttribute("data-id");
                         let apiKey = this.getAttribute("data-api-key");
