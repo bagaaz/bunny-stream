@@ -4,12 +4,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Shortcode para listar vídeos de uma biblioteca do Bunny Stream com filtro de pesquisa.
+ * Shortcode para listar vídeos de uma biblioteca do Bunny Stream com filtro de pesquisa e carregamento embutido.
  *
  * Uso: [bunny_stream_videos library_id="123"]
  *
  * @param array $atts Atributos do shortcode.
- * @return string HTML para exibir os vídeos com filtros.
+ * @return string HTML para exibir os vídeos com filtros e funcionalidade de carregamento embutido.
  */
 function bunny_stream_videos_shortcode( $atts ) {
     global $wpdb;
@@ -35,29 +35,38 @@ function bunny_stream_videos_shortcode( $atts ) {
 
     $form .= '<div style="display: flex; align-items: center; gap: 10px;">';
 
-// Campo de pesquisa
+    // Campo de pesquisa
     $form .= '<div style="flex: 2; position: relative;">';
     $form .= '<span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #555;">&#128269;</span>'; // Ícone de lupa
     $form .= '<input type="text" id="bsv_search" name="bsv_search" value="' . esc_attr($search) . '" placeholder="Pesquisar" style="width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #ddd; border-radius: 4px;">';
     $form .= '</div>';
 
-// Campo de data início
+    // Campo de data início
     $form .= '<div style="flex: 1; position: relative;">';
     $form .= '<span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #555;">&#128197;</span>'; // Ícone de calendário
     $form .= '<input type="date" id="bsv_start_date" name="bsv_start_date" value="' . esc_attr($start_date) . '" style="width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #ddd; border-radius: 4px;">';
     $form .= '</div>';
 
-// Campo de data fim
+    // Campo de data fim
     $form .= '<div style="flex: 1; position: relative;">';
     $form .= '<span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #555;">&#128197;</span>'; // Ícone de calendário
     $form .= '<input type="date" id="bsv_end_date" name="bsv_end_date" value="' . esc_attr($end_date) . '" style="width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #ddd; border-radius: 4px;">';
     $form .= '</div>';
 
-// Botão de filtrar
+    // Botão de filtrar
     $form .= '<button type="submit" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">&#128269; Filtrar</button>';
 
     $form .= '</div>';
     $form .= '</form>';
+
+    // Consulta o CDN Hostname e o Token Authentication Key da biblioteca
+    $library_table = $wpdb->prefix . 'bunny_libraries';
+    $library_data = $wpdb->get_row( $wpdb->prepare( "SELECT cdn_hostname, token_auth_key FROM $library_table WHERE id = %d", $library_id ), ARRAY_A );
+    if ( !$library_data || empty($library_data['cdn_hostname']) ) {
+        return $form . '<p>CDN Hostname não configurado para esta biblioteca.</p>';
+    }
+    $cdn_host = $library_data['cdn_hostname'];
+    $token_security_key = $library_data['token_auth_key'];
 
     // Monta a query SQL com os filtros
     $table_name = $wpdb->prefix . 'bunny_videos';
@@ -89,20 +98,47 @@ function bunny_stream_videos_shortcode( $atts ) {
     $output = $form;
     $output .= '<div class="bunny-stream-videos" style="max-width: 1200px; margin: 20px auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">';
 
-    // Loop nos vídeos e gera um embed (iframe) para cada um
+    // Loop nos vídeos e gera o thumbnail para cada um
     foreach ($videos as $video) {
-        // URL padrão do Bunny para exibir o vídeo
-        $embed_url = sprintf('https://iframe.mediadelivery.net/embed/%d/%s?autoplay=false&loop=false&muted=false&preload=false&responsive=true', $library_id, esc_attr($video['guid']));
+        // Monta a URL da thumbnail: https://{cdn_host}/{video_guid}/thumbnail.jpg
+        $thumbnail_url = sprintf( 'https://%s/%s/thumbnail.jpg', $cdn_host, esc_attr( $video['guid'] ) );
+        // Gera o token: SHA256_HEX(token_security_key + video_guid + 0)
+        $computed_token = hash( 'sha256', $token_security_key . $video['guid'] . '0' );
+        // Monta a URL do embed do vídeo, incluindo o token como query parameter
+        $embed_url = sprintf(
+            'https://iframe.mediadelivery.net/embed/%d/%s?autoplay=false&loop=false&muted=false&preload=false&responsive=true&token=%s',
+            $library_id,
+            esc_attr($video['guid']),
+            urlencode($computed_token)
+        );
 
         $output .= '<div class="bunny-video" style="width: 100%;">';
-        $output .= '<div style="position: relative; padding-top: 56.25%; background-color: #f0f0f0; border-radius: 8px; overflow: hidden; margin-bottom: 10px;">';
-        $output .= '<iframe src="' . esc_url($embed_url) . '" loading="lazy" style="border: 0; position: absolute; top: 0; left: 0; height: 100%; width: 100%;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen="true"></iframe>';
+        $output .= '<div class="bunny-video-container" style="position: relative; padding-top: 56.25%; background-color: #f0f0f0; border-radius: 8px; overflow: hidden; margin-bottom: 10px;">';
+        // Exibe a thumbnail com um link que, ao ser clicado, carregará o vídeo embutido na mesma área
+        $output .= '<a href="#" class="bunny-video-link" data-embed-url="' . esc_url($embed_url) . '">';
+        $output .= '<img src="' . esc_url($thumbnail_url) . '" alt="' . esc_attr( $video['title'] ) . '" style="border: 0; position: absolute; top: 0; left: 0; height: 100%; width: 100%; object-fit: cover;">';
+        $output .= '</a>';
         $output .= '</div>';
         $output .= '<h3 style="margin: 0; font-size: 1rem; line-height: 1.3; max-height: 2.6em; overflow: hidden; text-overflow: ellipsis; color: #565656;">' . esc_html($video['title']) . '</h3>';
         $output .= '</div>';
     }
 
     $output .= '</div>';
+
+    // Script para carregar o vídeo embutido quando a thumbnail for clicada
+    $output .= '<script>
+    document.addEventListener("DOMContentLoaded", function(){
+        var links = document.querySelectorAll(".bunny-video-link");
+        links.forEach(function(link){
+            link.addEventListener("click", function(e){
+                e.preventDefault();
+                var embedUrl = this.getAttribute("data-embed-url");
+                var container = this.closest(".bunny-video-container");
+                container.innerHTML = "<iframe src=\'" + embedUrl + "\' style=\'border:0; position: absolute; top: 0; left: 0; height: 100%; width: 100%;\' allow=\'accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture\' allowfullscreen></iframe>";
+            });
+        });
+    });
+    </script>';
 
     return $output;
 }

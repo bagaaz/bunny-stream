@@ -16,13 +16,13 @@ function bunny_stream_sync() {
     }
 
     $url = 'https://api.bunny.net/videolibrary';
-    $response = wp_remote_get( $url, [
-        'headers' => [
+    $response = wp_remote_get( $url, array(
+        'headers' => array(
             'AccessKey' => $api_key,
             'Accept'    => 'application/json',
-        ],
+        ),
         'timeout' => 10,
-    ] );
+    ) );
 
     $body = wp_remote_retrieve_body( $response );
     $libraries = json_decode( $body, true );
@@ -32,7 +32,7 @@ function bunny_stream_sync() {
     }
 
     $table_name = $wpdb->prefix . "bunny_libraries";
-    $api_ids    = [];
+    $api_ids = array();
 
     foreach ( $libraries as $library ) {
         $id          = intval( $library['Id'] );
@@ -41,23 +41,38 @@ function bunny_stream_sync() {
         $video_count = intval( $library['VideoCount'] );
         $api_ids[]   = $id;
 
-        $wpdb->replace(
-            $table_name,
-            [
-                'id'          => $id,
-                'name'        => $name,
-                'api_key'     => $ro_api,
-                'video_count' => $video_count,
-            ],
-            [
-                '%d',
-                '%s',
-                '%s',
-                '%d'
-            ]
-        );
+        // Verifica se a biblioteca já existe
+        $existing = $wpdb->get_row( $wpdb->prepare( "SELECT id FROM $table_name WHERE id = %d", $id ) );
+        if ( $existing ) {
+            // Atualiza somente os campos que vêm da API, preservando os personalizados
+            $wpdb->update(
+                $table_name,
+                array(
+                    'name'        => $name,
+                    'api_key'     => $ro_api,
+                    'video_count' => $video_count,
+                    // Não altera token_auth_key nem cdn_hostname
+                ),
+                array( 'id' => $id ),
+                array( '%s', '%s', '%d' ),
+                array( '%d' )
+            );
+        } else {
+            // Insere a nova biblioteca (os campos token_auth_key e cdn_hostname serão NULL)
+            $wpdb->insert(
+                $table_name,
+                array(
+                    'id'          => $id,
+                    'name'        => $name,
+                    'api_key'     => $ro_api,
+                    'video_count' => $video_count,
+                ),
+                array( '%d', '%s', '%s', '%d' )
+            );
+        }
     }
 
+    // Remove bibliotecas que não estão mais na API
     if ( ! empty( $api_ids ) ) {
         $ids_in = implode( ',', array_map( 'intval', $api_ids ) );
         $wpdb->query( "DELETE FROM $table_name WHERE id NOT IN ($ids_in)" );
@@ -159,3 +174,43 @@ function bunny_stream_sync_videos() {
     wp_send_json( [ 'items' => $saved_videos ] );
 }
 add_action( 'wp_ajax_bunny_stream_sync_videos', 'bunny_stream_sync_videos' );
+
+
+/**
+ * Handler AJAX para atualizar Token Authentication Key e CDN Hostname.
+ */
+function bunny_stream_update_library_details() {
+    global $wpdb;
+
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Acesso negado.' );
+    }
+
+    $library_id     = isset( $_POST['library_id'] ) ? intval( $_POST['library_id'] ) : 0;
+    $token_auth_key = isset( $_POST['token_auth_key'] ) ? sanitize_text_field( $_POST['token_auth_key'] ) : '';
+    $cdn_hostname   = isset( $_POST['cdn_hostname'] ) ? sanitize_text_field( $_POST['cdn_hostname'] ) : '';
+
+    if ( ! $library_id ) {
+        wp_send_json_error( 'ID da biblioteca não informado.' );
+    }
+
+    $table_name = $wpdb->prefix . 'bunny_libraries';
+
+    $updated = $wpdb->update(
+        $table_name,
+        array(
+            'token_auth_key' => $token_auth_key,
+            'cdn_hostname'   => $cdn_hostname,
+        ),
+        array( 'id' => $library_id ),
+        array( '%s', '%s' ),
+        array( '%d' )
+    );
+
+    if ( false === $updated ) {
+        wp_send_json_error( 'Erro ao atualizar a biblioteca.' );
+    } else {
+        wp_send_json_success( 'Biblioteca atualizada com sucesso.' );
+    }
+}
+add_action( 'wp_ajax_bunny_stream_update_library_details', 'bunny_stream_update_library_details' );

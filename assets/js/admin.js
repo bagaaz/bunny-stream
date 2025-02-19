@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 });
 
-// Função para carregar as bibliotecas salvas no banco de dados e incluir os campos para editar
+// Função para carregar as bibliotecas e exibi-las em uma tabela
 function loadLibraries() {
     fetch(ajaxurl + "?action=bunny_stream_get_libraries")
         .then(response => response.json())
@@ -29,27 +29,46 @@ function loadLibraries() {
             if (data.error) {
                 document.getElementById("bunny-libraries").innerHTML = "<p style='color: red;'>" + data.error + "</p>";
             } else if (data.length > 0) {
-                let output = "<ul>";
+                let output = `
+                    <table border="1" cellspacing="0" cellpadding="5">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nome da Biblioteca</th>
+                                <th>Token Authentication Key</th>
+                                <th>CDN Hostname</th>
+                                <th>Quantidade de Vídeos</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
                 data.forEach(library => {
-                    output += `<li>
-                        <strong>${library.name}</strong> - ${library.video_count} vídeos<br>
-                        API Key: ${library.api_key}<br>
-                        Token Authentication Key: <input type="text" class="token-key" data-library-id="${library.id}" value="${library.token_auth_key ? library.token_auth_key : ''}" style="width:300px;"><br>
-                        CDN Hostname: <input type="text" class="cdn-hostname" data-library-id="${library.id}" value="${library.cdn_hostname ? library.cdn_hostname : ''}" style="width:300px;"><br>
-                        <button class="update-library" data-library-id="${library.id}">Atualizar</button><br>
-                        <a href="#" class="library-link" data-id="${library.id}" data-api-key="${library.api_key}">Exibir Vídeos</a>
-                    </li>`;
+                    output += `
+                        <tr>
+                            <td>${library.id}</td>
+                            <td>${library.name}</td>
+                            <td><input type="text" class="token-key" data-library-id="${library.id}" value="${library.token_auth_key ? library.token_auth_key : ''}" style="width:150px;"></td>
+                            <td><input type="text" class="cdn-hostname" data-library-id="${library.id}" value="${library.cdn_hostname ? library.cdn_hostname : ''}" style="width:150px;"></td>
+                            <td>${library.video_count}</td>
+                            <td>
+                                <button class="update-library" data-library-id="${library.id}">Atualizar</button>
+                                <button class="import-videos" data-library-id="${library.id}" data-api-key="${library.api_key}">Importar Vídeos</button>
+                            </td>
+                        </tr>`;
                 });
-                output += "</ul>";
+                output += `
+                        </tbody>
+                    </table>`;
                 document.getElementById("bunny-libraries").innerHTML = output;
 
-                // Listener para os botões de atualizar os dados da biblioteca
+                // Adiciona o listener para os botões de atualizar
                 document.querySelectorAll(".update-library").forEach(button => {
                     button.addEventListener("click", function () {
                         const libraryId = this.getAttribute("data-library-id");
                         const tokenKey = document.querySelector(`.token-key[data-library-id="${libraryId}"]`).value;
                         const cdnHostname = document.querySelector(`.cdn-hostname[data-library-id="${libraryId}"]`).value;
 
+                        // Envia os dados via AJAX para atualizar a biblioteca
                         fetch(ajaxurl, {
                             method: "POST",
                             headers: {
@@ -66,24 +85,23 @@ function loadLibraries() {
                             .then(result => {
                                 if(result.success) {
                                     alert("Biblioteca atualizada com sucesso!");
-                                    loadLibraries(); // recarrega as bibliotecas para atualizar os dados na interface
+                                    loadLibraries();
                                 } else {
                                     alert("Erro: " + result.data);
                                 }
                             })
                             .catch(error => {
-                                alert("Erro ao atualizar a biblioteca: " + error);
+                                alert("Erro ao atualizar: " + error);
                             });
                     });
                 });
 
-                // Listener para os links que exibem os vídeos da biblioteca
-                document.querySelectorAll(".library-link").forEach(link => {
-                    link.addEventListener("click", function(e) {
-                        e.preventDefault();
-                        let libraryId = this.getAttribute("data-id");
-                        let apiKey = this.getAttribute("data-api-key");
-                        fetchVideos(libraryId, apiKey);
+                // Adiciona o listener para os botões de importar vídeos
+                document.querySelectorAll(".import-videos").forEach(button => {
+                    button.addEventListener("click", function () {
+                        const libraryId = this.getAttribute("data-library-id");
+                        const apiKey = this.getAttribute("data-api-key");
+                        importVideos(libraryId, apiKey);
                     });
                 });
             } else {
@@ -92,32 +110,23 @@ function loadLibraries() {
         });
 }
 
-// Função para sincronizar e obter os vídeos da biblioteca
-function fetchVideos(libraryId, apiKey) {
-    document.getElementById("bunny-videos").innerHTML = "Carregando vídeos...";
-
+// Função para importar vídeos da biblioteca e exibir mensagem com a quantidade importada
+function importVideos(libraryId, apiKey) {
+    document.getElementById("bunny-videos").innerHTML = "Importando vídeos...";
     fetch(ajaxurl + "?action=bunny_stream_sync_videos&library_id=" + libraryId + "&api_key=" + apiKey)
         .then(response => response.json())
         .then(data => {
             if (data.error) {
                 document.getElementById("bunny-videos").innerHTML = "<p style='color: red;'>" + data.error + "</p>";
-            } else if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-                let output = "<ul>";
-                data.items.forEach(video => {
-                    output += `<li>
-                        <strong>${video.title}</strong> (Duração: ${video.length} segundos)
-                        <br>
-                        <a href="https://iframe.mediadelivery.net/play/${libraryId}/${video.guid}" target="_blank">Assistir Vídeo</a>
-                    </li>`;
-                });
-                output += "</ul>";
-                document.getElementById("bunny-videos").innerHTML = output;
+            } else if (data.items && Array.isArray(data.items)) {
+                const totalVideos = data.items.length;
+                document.getElementById("bunny-videos").innerHTML = "<p>Foram importados " + totalVideos + " vídeos desta biblioteca.</p>";
             } else {
-                document.getElementById("bunny-videos").innerHTML = "<p style='color: orange;'>Nenhum vídeo encontrado.</p>";
+                document.getElementById("bunny-videos").innerHTML = "<p style='color: orange;'>Nenhum vídeo encontrado para importação.</p>";
             }
         })
         .catch(error => {
-            console.error("Erro ao obter os vídeos:", error);
-            document.getElementById("bunny-videos").innerHTML = "<p style='color: red;'>Erro ao obter os vídeos.</p>";
+            console.error("Erro ao importar os vídeos:", error);
+            document.getElementById("bunny-videos").innerHTML = "<p style='color: red;'>Erro ao importar os vídeos.</p>";
         });
 }
