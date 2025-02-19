@@ -30,13 +30,33 @@ function bunny_stream_videos_shortcode( $atts ) {
     $end_date   = isset( $_GET['bsv_end_date'] ) ? sanitize_text_field( $_GET['bsv_end_date'] ) : '';
 
     // Formulário de filtro
-    $form = '<form method="get" style="margin-bottom:20px;">';
-    // Mantenha o library_id (pode ser passado via hidden ou como parte da URL)
-    $form .= '<input type="hidden" name="library_id" value="' . $library_id . '">';
-    $form .= '<label>Pesquisar: <input type="text" name="bsv_search" value="' . esc_attr( $search ) . '"></label> ';
-    $form .= '<label>Data Início: <input type="date" name="bsv_start_date" value="' . esc_attr( $start_date ) . '"></label> ';
-    $form .= '<label>Data Fim: <input type="date" name="bsv_end_date" value="' . esc_attr( $end_date ) . '"></label> ';
-    $form .= '<button type="submit">Filtrar</button>';
+    $form = '<form method="get" style="max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f5f5f5; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">';
+    $form .= '<input type="hidden" name="library_id" value="' . esc_attr($library_id) . '">';
+
+    $form .= '<div style="display: flex; align-items: center; gap: 10px;">';
+
+// Campo de pesquisa
+    $form .= '<div style="flex: 2; position: relative;">';
+    $form .= '<span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #555;">&#128269;</span>'; // Ícone de lupa
+    $form .= '<input type="text" id="bsv_search" name="bsv_search" value="' . esc_attr($search) . '" placeholder="Pesquisar" style="width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #ddd; border-radius: 4px;">';
+    $form .= '</div>';
+
+// Campo de data início
+    $form .= '<div style="flex: 1; position: relative;">';
+    $form .= '<span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #555;">&#128197;</span>'; // Ícone de calendário
+    $form .= '<input type="date" id="bsv_start_date" name="bsv_start_date" value="' . esc_attr($start_date) . '" style="width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #ddd; border-radius: 4px;">';
+    $form .= '</div>';
+
+// Campo de data fim
+    $form .= '<div style="flex: 1; position: relative;">';
+    $form .= '<span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #555;">&#128197;</span>'; // Ícone de calendário
+    $form .= '<input type="date" id="bsv_end_date" name="bsv_end_date" value="' . esc_attr($end_date) . '" style="width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #ddd; border-radius: 4px;">';
+    $form .= '</div>';
+
+// Botão de filtrar
+    $form .= '<button type="submit" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">&#128269; Filtrar</button>';
+
+    $form .= '</div>';
     $form .= '</form>';
 
     // Monta a query SQL com os filtros
@@ -67,18 +87,21 @@ function bunny_stream_videos_shortcode( $atts ) {
 
     // Inicia o output com o formulário
     $output = $form;
-    $output .= '<div class="bunny-stream-videos">';
+    $output .= '<div class="bunny-stream-videos" style="max-width: 1200px; margin: 20px auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">';
 
-    // Loop nos vídeos e gera um embed (iframe) para cada um
-    foreach ( $videos as $video ) {
+// Loop nos vídeos e gera um embed (iframe) para cada um
+    foreach ($videos as $video) {
         // URL padrão do Bunny para exibir o vídeo
-        $embed_url = sprintf( 'https://iframe.mediadelivery.net/play/%d/%s', $library_id, esc_attr( $video['guid'] ) );
+        $embed_url = sprintf('https://iframe.mediadelivery.net/embed/%d/%s?autoplay=false&loop=false&muted=false&preload=false&responsive=true', $library_id, esc_attr($video['guid']));
 
-        $output .= '<div class="bunny-video" style="margin-bottom: 20px;">';
-        $output .= '<h3>' . esc_html( $video['title'] ) . '</h3>';
-        $output .= '<iframe src="' . esc_url( $embed_url ) . '" width="560" height="315" frameborder="0" allowfullscreen></iframe>';
+        $output .= '<div class="bunny-video" style="width: 100%;">';
+        $output .= '<div style="position: relative; padding-top: 56.25%; background-color: #f0f0f0; border-radius: 8px; overflow: hidden; margin-bottom: 10px;">';
+        $output .= '<iframe src="' . esc_url($embed_url) . '" loading="lazy" style="border: 0; position: absolute; top: 0; left: 0; height: 100%; width: 100%;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen="true"></iframe>';
+        $output .= '</div>';
+        $output .= '<h3 style="margin: 0; font-size: 1rem; line-height: 1.3; max-height: 2.6em; overflow: hidden; text-overflow: ellipsis; color: #565656;">' . esc_html($video['title']) . '</h3>';
         $output .= '</div>';
     }
+
     $output .= '</div>';
 
     return $output;
